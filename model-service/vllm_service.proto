@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package vllm;
+
+service VLLMService {
+  // The Query method accepts a query and returns a stream of tokens.
+  rpc Query (QueryRequest) returns (stream QueryResponse);
+}
+
+message QueryRequest {
+  string query = 1;
+}
+
+message QueryResponse {
+  string token = 1;
+}
