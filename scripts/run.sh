@@ -14,7 +14,7 @@ python3 vllm_server.py &
 MAIN_PY_SERVER_PID=$!
 echo "Model server started with PID: $MAIN_PY_SERVER_PID"
 
-sleep 30
+sleep 60
 
 #####################################
 # 3) Start the Go server            #

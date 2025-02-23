@@ -11,11 +11,15 @@ import (
 
 	"github.com/gorilla/websocket"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
-	gracePeriod  = 5 * time.Second
-	scanInterval = 500 * time.Millisecond
+	gracePeriod      = 5 * time.Second
+	scanInterval     = 500 * time.Millisecond
+	grpcQueryTimeout = 120 * time.Second // Increased timeout for gRPC query
+	grpcDialTimeout  = 60 * time.Second  // Increased dial timeout
+	websocketTimeout = grpcDialTimeout   // gracePeriod + 2*time.Second // Increased WS timeout and added margin
 )
 
 type Request struct {
@@ -44,6 +48,7 @@ func createRequestQueueManager() *RequestQueueManager {
 }
 
 func (rqm *RequestQueueManager) AddRequest(req *Request) {
+	log.Printf("[Queue] Adding new request: %s", req.query)
 	rqm.mu.Lock()
 	rqm.queue = append(rqm.queue, req)
 	rqm.mu.Unlock()
@@ -51,7 +56,7 @@ func (rqm *RequestQueueManager) AddRequest(req *Request) {
 }
 
 func (rqm *RequestQueueManager) Start(ctx context.Context) {
-	// Routine 1: Scans for expired requests. Closes their channel and removes from queue
+	// Routine: Scans for expired requests. Closes their channel and removes from queue.
 	go func() {
 		ticker := time.NewTicker(scanInterval)
 		defer ticker.Stop()
@@ -63,34 +68,34 @@ func (rqm *RequestQueueManager) Start(ctx context.Context) {
 				for _, req := range rqm.queue {
 					now := time.Now()
 
-					// If request is stale: close the channel and continue without adding
+					// If request is stale: log and close the channel.
 					if now.Sub(req.createdAt) > gracePeriod && !req.isActive {
+						log.Printf("[Queue Timeout] Request expired for query: %s", req.query)
 						close(req.responseCh)
 						continue
 					}
 
-					// If request is pending and have capacity: Dispatch it
+					// If request is pending and there is capacity: dispatch it.
 					if !req.isActive && rqm.activeQueries < rqm.maxActiveQueries {
+						log.Printf("[Dispatch] Dispatching query: %s", req.query)
 						req.isActive = true
 						rqm.activeQueries++
-
-						// Dispatch request
 						go func(r *Request) {
 							vLlmInteractor(r)
 							rqm.mu.Lock()
 							r.isActive = false
-							rqm.activeQueries -= 1
+							rqm.activeQueries--
 							rqm.mu.Unlock()
 						}(req)
 						continue
 					}
 
 					freshQueue = append(freshQueue, req)
-
 				}
 				rqm.queue = freshQueue
 				rqm.mu.Unlock()
 			case <-ctx.Done():
+				log.Printf("[Queue] Context done, stopping queue manager.")
 				return
 			}
 		}
@@ -98,36 +103,49 @@ func (rqm *RequestQueueManager) Start(ctx context.Context) {
 }
 
 func vLlmInteractor(req *Request) {
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
+	// Create a dialing context with a timeout.
+	_, dialCancel := context.WithTimeout(context.Background(), grpcDialTimeout)
+	defer dialCancel()
 
-	grpcConn, err := grpc.Dial("vllm-container:50051", grpc.WithInsecure(), grpc.WithBlock(), grpc.WithTimeout(6*time.Second))
+	log.Printf("[gRPC NewClient] Attempting to create a new client for query: %s", req.query)
+	grpcConn, err := grpc.NewClient("localhost:50051",
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
 	if err != nil {
-		log.Printf("Failed to dial gRPC server: %v", err)
-		req.responseCh <- "Internal server error"
+		log.Printf("[Timeout: gRPC NewClient] Failed to create new client: %v for query: %s", err, req.query)
+		req.responseCh <- "Internal server error: gRPC dial timeout"
 		close(req.responseCh)
 		return
 	}
 	defer grpcConn.Close()
+	log.Printf("[gRPC NewClient] Client created successfully for query: %s", req.query)
+
+	// Create a separate context for the query.
+	queryCtx, queryCancel := context.WithTimeout(context.Background(), grpcQueryTimeout)
+	defer queryCancel()
 
 	gReq := &pb.QueryRequest{Query: req.query}
 	client := pb.NewVLLMServiceClient(grpcConn)
-	stream, err := client.Query(ctx, gReq)
+	log.Printf("[gRPC Query] Sending query to gRPC server: %s", req.query)
+	stream, err := client.Query(queryCtx, gReq)
 	if err != nil {
-		log.Printf("gRPC Query error: %v", err)
-		req.responseCh <- "Internal server error"
+		log.Printf("[gRPC Query Error] %v for query: %s", err, req.query)
+		req.responseCh <- "Internal server error: gRPC query error"
 		close(req.responseCh)
 		return
 	}
 
+	// Read tokens from the gRPC stream.
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
-			log.Printf("Error receiving from gRPC stream: %v", err)
+			log.Printf("[gRPC Recv Error] %v for query: %s", err, req.query)
 			break
 		}
+		log.Printf("[gRPC Token] Received token: '%s' for query: %s", resp.Token, req.query)
 		req.responseCh <- resp.Token
 		if resp.Token == "[END]" {
+			log.Printf("[gRPC Complete] Finished query: %s", req.query)
 			break
 		}
 	}
@@ -143,22 +161,21 @@ var upgrader = websocket.Upgrader{
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
-	// Upgrade connection from HTTP to WebSocket
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("Web Socket upgrade failed: %v", err)
+		log.Printf("[WebSocket Upgrade Error] %v", err)
 		return
 	}
 	defer conn.Close()
-	// Read prompt from client
+
 	_, message, err := conn.ReadMessage()
 	if err != nil {
-		log.Printf("Error reading WebSocket message: %v", err)
+		log.Printf("[WebSocket Read Error] %v", err)
 		return
 	}
 	query := string(message)
-	log.Printf("Received query: %s", query)
-	// Create Request and add to queue
+	log.Printf("[WebSocket Received] Query: %s", query)
+
 	req := &Request{
 		query:      query,
 		responseCh: make(chan string, 10),
@@ -168,23 +185,25 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 	rqManager.AddRequest(req)
 
-	// Stream tokens as they come in through channel to the web socket.
 	for {
 		select {
 		case token, ok := <-req.responseCh:
-			if !ok { // Closed channel
+			if !ok {
+				log.Printf("[WebSocket] Response channel closed for query: %s", query)
 				return
 			}
 
 			if err := conn.WriteMessage(websocket.TextMessage, []byte(token)); err != nil {
-				log.Printf("Error writing to WebSocket: %v", err)
+				log.Printf("[WebSocket Write Error] %v for query: %s", err, query)
 				return
 			}
 
 			if token == "[END]" {
+				log.Printf("[WebSocket] Completed sending tokens for query: %s", query)
 				return
 			}
-		case <-time.After(gracePeriod + time.Second):
+		case <-time.After(websocketTimeout):
+			log.Printf("[Timeout: WebSocket Response] No response received in %v for query: %s", websocketTimeout, query)
 			conn.WriteMessage(websocket.TextMessage, []byte("Timeout: no response received."))
 			return
 		}
