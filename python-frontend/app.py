@@ -1,6 +1,5 @@
 import streamlit as st
-from hugchat import hugchat
-from hugchat.login import Login
+import websocket
 
 # App title
 st.set_page_config(page_title="George LLM Chat")
@@ -21,8 +20,16 @@ for message in st.session_state.messages:
 
 # Function for generating LLM response: Logic for API call here
 def generate_response(prompt_input):
-    #return chatbot.chat(prompt_input)
-    return "Works"
+    ws = websocket.create_connection("ws://localhost:8080/ws")
+    ws.send(prompt)
+    response = ""
+    while True:
+        token = ws.recv()
+        response += token
+        if token == "[END]":
+            break
+    ws.close()
+    return response.replace("[END]", "")
 
 # User-provided prompt
 if prompt := st.chat_input():

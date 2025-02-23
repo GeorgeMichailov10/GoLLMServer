@@ -1,4 +1,4 @@
-package goserver
+package main
 
 import (
 	"context"
@@ -126,10 +126,10 @@ func vLlmInteractor(req *Request) {
 			log.Printf("Error receiving from gRPC stream: %v", err)
 			break
 		}
+		req.responseCh <- resp.Token
 		if resp.Token == "[END]" {
 			break
 		}
-		req.responseCh <- resp.Token
 	}
 	close(req.responseCh)
 }
@@ -199,7 +199,7 @@ func main() {
 
 	http.HandleFunc("/ws", wsHandler)
 
-	addr := "8080"
+	addr := ":8080"
 	log.Printf("Starting server on %s", addr)
 	srv := &http.Server{
 		Addr:              addr,
@@ -208,5 +208,4 @@ func main() {
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalf("ListenAndServe error: %v", err)
 	}
-
 }
