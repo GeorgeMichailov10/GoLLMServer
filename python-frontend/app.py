@@ -5,7 +5,7 @@ from hugchat.login import Login
 # App title
 st.set_page_config(page_title="George LLM Chat")
 
-# Hugging Face Credentials
+
 with st.sidebar:
     st.title('This is where\nthe convo history\nwill be')
     

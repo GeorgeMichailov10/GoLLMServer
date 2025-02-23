@@ -2,8 +2,9 @@ syntax = "proto3";
 
 package vllm;
 
+option go_package = "github.com/GeorgeMichailov/personalllmchat/go-server/model-service";
+
 service VLLMService {
-  // The Query method accepts a query and returns a stream of tokens.
   rpc Query (QueryRequest) returns (stream QueryResponse);
 }
 

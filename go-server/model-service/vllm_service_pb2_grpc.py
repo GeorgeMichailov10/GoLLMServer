@@ -45,8 +45,7 @@ class VLLMServiceServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def Query(self, request, context):
-        """The Query method accepts a query and returns a stream of tokens.
-        """
+        """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')

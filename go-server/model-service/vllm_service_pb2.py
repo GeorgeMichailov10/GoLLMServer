@@ -24,13 +24,14 @@ _sym_db = _symbol_database.Default()
 
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12vllm_service.proto\x12\x04vllm\"\x1d\n\x0cQueryRequest\x12\r\n\x05query\x18\x01 \x01(\t\"\x1e\n\rQueryResponse\x12\r\n\x05token\x18\x01 \x01(\t2A\n\x0bVLLMService\x12\x32\n\x05Query\x12\x12.vllm.QueryRequest\x1a\x13.vllm.QueryResponse0\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x12vllm_service.proto\x12\x04vllm\"\x1d\n\x0cQueryRequest\x12\r\n\x05query\x18\x01 \x01(\t\"\x1e\n\rQueryResponse\x12\r\n\x05token\x18\x01 \x01(\t2A\n\x0bVLLMService\x12\x32\n\x05Query\x12\x12.vllm.QueryRequest\x1a\x13.vllm.QueryResponse0\x01\x42\x44ZBgithub.com/GeorgeMichailov/personalllmchat/go-server/model-serviceb\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'vllm_service_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-  DESCRIPTOR._loaded_options = None
+  _globals['DESCRIPTOR']._loaded_options = None
+  _globals['DESCRIPTOR']._serialized_options = b'ZBgithub.com/GeorgeMichailov/personalllmchat/go-server/model-service'
   _globals['_QUERYREQUEST']._serialized_start=28
   _globals['_QUERYREQUEST']._serialized_end=57
   _globals['_QUERYRESPONSE']._serialized_start=59
