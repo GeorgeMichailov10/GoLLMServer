@@ -1,3 +1,4 @@
+import uuid
 import asyncio
 import grpc
 from vllm_service_pb2 import QueryResponse
@@ -24,15 +25,18 @@ class VLLMServiceServicer(vllm_service_pb2_grpc.VLLMServiceServicer):
         print(f"[gRPC Server] Completed query: {request.query}")
 
     async def stream_inference_async(self, query: str):
-        print(f"[gRPC Server] Starting inference for query: {query}")
-        request_id = "my-stream-request-123"
+        print(f"[DEBUG] Full Prompt Sent to Model:\n{query}")
+        request_id = str(uuid.uuid4())
         currently_seen = 0
+        debug = ""
         async for request_output in engine.generate(query, SAMPLING_PARAMS, request_id):
             for output in request_output.outputs:
+                debug = output.text
                 partial_text = output.text[currently_seen:]
                 currently_seen = len(output.text)
                 yield partial_text
             if request_output.finished:
+                print(f"[DEBUG]: MODEL FULL RESPONSE TO QUERY: {debug}")
                 break
         yield "[END]"
 
