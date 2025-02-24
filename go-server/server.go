@@ -113,14 +113,11 @@ func vLlmInteractor(req *Request) {
 	)
 	if err != nil {
 		log.Printf("[Timeout: gRPC NewClient] Failed to create new client: %v for query: %s", err, req.query)
-		req.responseCh <- "Internal server error: gRPC dial timeout"
 		close(req.responseCh)
 		return
 	}
 	defer grpcConn.Close()
 	log.Printf("[gRPC NewClient] Client created successfully for query: %s", req.query)
-
-	// Create a separate context for the query.
 	queryCtx, queryCancel := context.WithTimeout(context.Background(), grpcQueryTimeout)
 	defer queryCancel()
 
@@ -130,12 +127,11 @@ func vLlmInteractor(req *Request) {
 	stream, err := client.Query(queryCtx, gReq)
 	if err != nil {
 		log.Printf("[gRPC Query Error] %v for query: %s", err, req.query)
-		req.responseCh <- "Internal server error: gRPC query error"
 		close(req.responseCh)
 		return
 	}
 
-	// Read tokens from the gRPC stream.
+	// Read tokens from the gRPC stream
 	for {
 		resp, err := stream.Recv()
 		if err != nil {
