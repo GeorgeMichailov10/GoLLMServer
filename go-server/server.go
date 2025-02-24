@@ -27,6 +27,7 @@ type Request struct {
 	responseCh chan string
 	createdAt  time.Time
 	isActive   bool
+	isComplete bool
 }
 
 type RequestQueueManager struct {
@@ -66,6 +67,9 @@ func (rqm *RequestQueueManager) Start(ctx context.Context) {
 				rqm.mu.Lock()
 				var freshQueue []*Request
 				for _, req := range rqm.queue {
+					if req.isComplete {
+						continue
+					}
 					now := time.Now()
 
 					// If request is stale: log and close the channel.
@@ -146,6 +150,7 @@ func vLlmInteractor(req *Request) {
 		}
 	}
 	close(req.responseCh)
+	req.isComplete = true
 }
 
 var rqManager *RequestQueueManager = createRequestQueueManager()
@@ -177,6 +182,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		responseCh: make(chan string, 10),
 		createdAt:  time.Now(),
 		isActive:   false,
+		isComplete: false,
 	}
 
 	rqManager.AddRequest(req)

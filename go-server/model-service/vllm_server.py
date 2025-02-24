@@ -7,7 +7,7 @@ from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.sampling_params import SamplingParams
 
 # Define parameters and initialize engine.
-SAMPLING_PARAMS = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=30)
+SAMPLING_PARAMS = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=15)
 MODEL_NAME = "facebook/opt-125m"
 engine_args = AsyncEngineArgs(
     model=MODEL_NAME,
@@ -26,9 +26,12 @@ class VLLMServiceServicer(vllm_service_pb2_grpc.VLLMServiceServicer):
     async def stream_inference_async(self, query: str):
         print(f"[gRPC Server] Starting inference for query: {query}")
         request_id = "my-stream-request-123"
+        currently_seen = 0
         async for request_output in engine.generate(query, SAMPLING_PARAMS, request_id):
             for output in request_output.outputs:
-                yield output.text
+                partial_text = output.text[currently_seen:]
+                currently_seen = len(output.text)
+                yield partial_text
             if request_output.finished:
                 break
         yield "[END]"
