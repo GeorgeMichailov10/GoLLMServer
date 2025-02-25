@@ -72,8 +72,28 @@ func GetUser(username string) (*User, error) {
 func DeleteUser(c echo.Context) error {
 	username := c.Param("username")
 
+	user, err := GetUser(username)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Error fetching user"})
+	}
+	if user == nil {
+		return c.JSON(http.StatusNotFound, echo.Map{"error": "User not found"})
+	}
+
+	chatIDs := make([]primitive.ObjectID, 0, len(user.Chats))
+	for chatID := range user.Chats {
+		chatIDs = append(chatIDs, chatID)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+
+	if len(chatIDs) > 0 {
+		_, err := ChatCollection.DeleteMany(ctx, bson.M{"_id": bson.M{"$in": chatIDs}})
+		if err != nil {
+			return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to delete chats"})
+		}
+	}
 
 	res, err := UserCollection.DeleteOne(ctx, bson.M{"username": username})
 	if err != nil {
