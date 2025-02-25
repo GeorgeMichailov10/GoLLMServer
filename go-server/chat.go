@@ -29,18 +29,28 @@ type ChatInteraction struct {
 // CRUD functions
 
 func CreateChat(c echo.Context) error {
-	var chat Chat
-	if err := c.Bind(&chat); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid input"})
+	username, ok := c.Get("username").(string)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized"})
 	}
 
-	chat.ID = primitive.NewObjectID()
+	owningUser, err := GetUser(username)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create chat"})
+	}
+
+	chat := Chat{
+		ID:      primitive.NewObjectID(),
+		OwnerID: owningUser.ID,
+		Content: make([]map[string]string, 3),
+	}
+	chat.Title = chat.ID.String()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := ChatCollection.InsertOne(ctx, chat)
-	if err != nil {
+	_, insert_err := ChatCollection.InsertOne(ctx, chat)
+	if insert_err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create chat"})
 	}
 	return c.JSON(http.StatusCreated, chat)
