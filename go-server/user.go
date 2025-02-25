@@ -16,10 +16,10 @@ import (
 // User Model(s)
 
 type User struct {
-	ID       primitive.ObjectID `json:"id,omitempty" bson:"_id,omitempty"`
-	Username string
-	Password string
-	Chats    map[primitive.ObjectID]string // Id : title for now where title will simply be the chat id as a string for now
+	ID       primitive.ObjectID            `json:"id,omitempty" bson:"_id,omitempty"`
+	Username string                        `json:"username" bson:"username"`
+	Password string                        `json:"password" bson:"password"`
+	Chats    map[primitive.ObjectID]string `json:"chats,omitempty" bson:"chats,omitempty"` // Id : title for now where title will simply be the chat id as a string for now
 }
 
 type LoginRequest struct {
@@ -30,19 +30,22 @@ type LoginRequest struct {
 // CRUD functions
 
 func CreateUser(c echo.Context) error {
-	var user User
-	if err := c.Bind(&user); err != nil {
+	var userDetails LoginRequest
+	if err := c.Bind(&userDetails); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid input"})
 	}
 
-	user.ID = primitive.NewObjectID()
-
-	passwordHash, passwordErr := HashPassword(user.Password)
+	passwordHash, passwordErr := HashPassword(userDetails.Password)
 	if passwordErr != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create user"})
 	}
 
-	user.Password = passwordHash
+	user := User{
+		ID:       primitive.NewObjectID(),
+		Username: userDetails.Username,
+		Password: passwordHash,
+		Chats:    make(map[primitive.ObjectID]string),
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -115,12 +118,12 @@ func Login(c echo.Context) error {
 }
 
 func Register(c echo.Context) error {
-	var req LoginRequest
-	if err := c.Bind(&req); err != nil {
+	var loginRequest LoginRequest
+	if err := c.Bind(&loginRequest); err != nil {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid request payload"})
 	}
 
-	existingUser, err := GetUser(req.Username)
+	existingUser, err := GetUser(loginRequest.Username)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Database error"})
 	}
@@ -128,30 +131,14 @@ func Register(c echo.Context) error {
 		return c.JSON(http.StatusConflict, echo.Map{"error": "Username already exists"})
 	}
 
-	newUser := User{
-		ID:       primitive.NewObjectID(),
-		Username: req.Username,
-		Chats:    []primitive.ObjectID{},
-	}
-	hashedPassword, err := HashPassword(req.Password)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to hash password"})
-	}
-	newUser.Password = hashedPassword
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	_, err = UserCollection.InsertOne(ctx, newUser)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to register user"})
-	}
-
-	return c.JSON(http.StatusCreated, echo.Map{"message": "User registered successfully", "user": newUser})
+	return CreateUser(c)
 }
 
 func GetUserHandler(c echo.Context) error {
-	username := c.Param("username")
+	username, ok := c.Get("username").(string)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized access attempt."})
+	}
 
 	user, err := GetUser(username)
 	if err != nil {
@@ -165,7 +152,10 @@ func GetUserHandler(c echo.Context) error {
 }
 
 func GetUserChats(c echo.Context) error {
-	username := c.Param("username")
+	username, ok := c.Get("username").(string)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized"})
+	}
 
 	user, err := GetUser(username)
 	if err != nil {
@@ -186,9 +176,9 @@ func UserRouteController(e *echo.Echo) {
 
 	protected := e.Group("/user")
 	protected.Use(JWTMiddleware)
-	protected.GET("/:username", GetUserHandler)
-	protected.GET("/:username/chats", GetUserChats)
-	protected.DELETE("/:username", DeleteUser)
+	protected.GET("", GetUserHandler)
+	protected.GET("/chats", GetUserChats)
+	protected.DELETE("", DeleteUser)
 }
 
 // Utility Functions
