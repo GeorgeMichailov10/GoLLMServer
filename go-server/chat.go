@@ -79,6 +79,7 @@ func GetChat(c echo.Context) (*Chat, error) {
 	return &chat, nil
 }
 
+// Refuse to add chats where either is null
 func AddInteraction(c echo.Context) error {
 	chatIDParam := c.Param("chatid")
 	chatID, err := primitive.ObjectIDFromHex(chatIDParam)

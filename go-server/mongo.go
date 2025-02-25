@@ -11,7 +11,7 @@ import (
 
 const (
 	mongoURI           = "mongodb://localhost:27017"
-	databaseName       = ""
+	databaseName       = "playground1"
 	userCollectionName = "users"
 	chatCollectionName = "chats"
 )

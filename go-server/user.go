@@ -29,12 +29,7 @@ type LoginRequest struct {
 
 // CRUD functions
 
-func CreateUser(c echo.Context) error {
-	var userDetails LoginRequest
-	if err := c.Bind(&userDetails); err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid input"})
-	}
-
+func CreateUser(c echo.Context, userDetails LoginRequest) error {
 	passwordHash, passwordErr := HashPassword(userDetails.Password)
 	if passwordErr != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create user"})
@@ -54,7 +49,7 @@ func CreateUser(c echo.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create user"})
 	}
-	return c.JSON(http.StatusCreated, user)
+	return c.JSON(http.StatusCreated, echo.Map{"message": "SUCCESS CREATING USER"})
 }
 
 func GetUser(username string) (*User, error) {
@@ -64,7 +59,7 @@ func GetUser(username string) (*User, error) {
 	var user User
 	err := UserCollection.FindOne(ctx, bson.M{"username": username}).Decode(&user)
 	if err != nil {
-		if err == mongo.ErrNilDocument {
+		if err == mongo.ErrNoDocuments {
 			return nil, nil
 		}
 		log.Println("Error fetching user:", err)
@@ -131,7 +126,7 @@ func Register(c echo.Context) error {
 		return c.JSON(http.StatusConflict, echo.Map{"error": "Username already exists"})
 	}
 
-	return CreateUser(c)
+	return CreateUser(c, loginRequest)
 }
 
 func GetUserHandler(c echo.Context) error {

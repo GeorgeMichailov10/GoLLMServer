@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"time"
 
 	"net/http"
@@ -32,13 +33,18 @@ func GenerateJWT(username string) (string, error) {
 func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		tokenString := c.Request().Header.Get("Authorization")
-
 		if tokenString == "" {
 			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Missing token"})
 		}
 
+		parts := strings.Split(tokenString, " ")
+		if len(parts) != 2 || parts[0] != "Bearer" {
+			return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Invalid token format"})
+		}
+		authToken := parts[1]
+
 		claims := &Claims{}
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
+		token, err := jwt.ParseWithClaims(authToken, claims, func(token *jwt.Token) (interface{}, error) {
 			return jwtSecret, nil
 		})
 
