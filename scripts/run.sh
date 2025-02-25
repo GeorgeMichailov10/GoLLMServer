@@ -21,7 +21,7 @@ sleep 60
 #####################################
 echo "Starting Go server..."
 cd ..
-go run server.go &
+go run *.go &
 GO_SERVER_PID=$!
 echo "Go server started with PID: $GO_SERVER_PID"
 
