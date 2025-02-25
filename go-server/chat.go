@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -79,7 +80,6 @@ func GetChat(c echo.Context) (*Chat, error) {
 	return &chat, nil
 }
 
-// Refuse to add chats where either is null
 func AddInteraction(c echo.Context) error {
 	chatIDParam := c.Param("chatid")
 	chatID, err := primitive.ObjectIDFromHex(chatIDParam)
@@ -88,7 +88,9 @@ func AddInteraction(c echo.Context) error {
 	}
 
 	var interaction ChatInteraction
-	if err := c.Bind(&interaction); err != nil {
+	if err := c.Bind(&interaction); err != nil ||
+		len(strings.TrimSpace(interaction.UserChat)) == 0 ||
+		len(strings.TrimSpace(interaction.ModelChat)) == 0 {
 		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid input"})
 	}
 
