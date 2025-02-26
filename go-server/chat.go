@@ -4,7 +4,6 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -23,8 +22,9 @@ type Chat struct {
 }
 
 type ChatInteraction struct {
-	UserChat  string `json:"userchat" bson:"userchat"`
-	ModelChat string `json:"modelchat" bson:"modelchat"`
+	ChatID    string
+	UserChat  string
+	ModelChat string
 }
 
 // CRUD functions
@@ -80,44 +80,6 @@ func GetChat(c echo.Context) (*Chat, error) {
 	return &chat, nil
 }
 
-func AddInteraction(c echo.Context) error {
-	chatIDParam := c.Param("chatid")
-	chatID, err := primitive.ObjectIDFromHex(chatIDParam)
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid chat ID"})
-	}
-
-	var interaction ChatInteraction
-	if err := c.Bind(&interaction); err != nil ||
-		len(strings.TrimSpace(interaction.UserChat)) == 0 ||
-		len(strings.TrimSpace(interaction.ModelChat)) == 0 {
-		return c.JSON(http.StatusBadRequest, echo.Map{"error": "Invalid input"})
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	update := bson.M{
-		"$push": bson.M{
-			"content": bson.M{
-				"user":  interaction.UserChat,
-				"model": interaction.ModelChat,
-			},
-		},
-	}
-
-	res, err := ChatCollection.UpdateOne(ctx, bson.M{"_id": chatID}, update)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to add interaction"})
-	}
-
-	if res.ModifiedCount == 0 {
-		return c.JSON(http.StatusNotFound, echo.Map{"error": "Chat not found"})
-	}
-
-	return c.JSON(http.StatusOK, echo.Map{"message": "Interaction added successfully"})
-}
-
 func DeleteChat(c echo.Context) error {
 	chatIDParam := c.Param("chatid")
 	chatID, err := primitive.ObjectIDFromHex(chatIDParam)
@@ -163,6 +125,33 @@ func ChatRouteController(e *echo.Echo) {
 	chatGroup.Use(JWTMiddleware)
 	chatGroup.POST("", CreateChat)
 	chatGroup.GET("/:chatid", GetChatHandler)
-	chatGroup.POST("/:chatid", AddInteraction)
 	chatGroup.DELETE("/:chatid", DeleteChat)
+}
+
+// Utility Functions
+
+// Verify if this is correct
+func AddInteraction(interaction ChatInteraction) bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	update := bson.M{
+		"$push": bson.M{
+			"content": bson.M{
+				"user":  interaction.UserChat,
+				"model": interaction.ModelChat,
+			},
+		},
+	}
+
+	res, err := ChatCollection.UpdateOne(ctx, bson.M{"_id": interaction.ChatID}, update)
+	if err != nil {
+		return false
+	}
+
+	if res.ModifiedCount == 0 {
+		return false
+	}
+
+	return true
 }

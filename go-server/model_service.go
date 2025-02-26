@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"sync"
@@ -28,6 +29,13 @@ type Request struct {
 	createdAt  time.Time
 	isActive   bool
 	isComplete bool
+	ChatID     string
+}
+
+type IncomingWSMessage struct {
+	Claims Claims `json:"claims,omitempty"`
+	Query  string `json:"query"`
+	ChatID string `json:"chatid"`
 }
 
 type RequestQueueManager struct {
@@ -205,6 +213,63 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			}
 		case <-time.After(websocketTimeout):
 			log.Printf("[Timeout: WebSocket Response] No response received in %v for query: %s", websocketTimeout, query)
+			conn.WriteMessage(websocket.TextMessage, []byte("Timeout: no response received."))
+			return
+		}
+	}
+}
+
+// TODO: Validate Claims
+func newWSHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("[WebSocket Upgrade Error] %v", err)
+		return
+	}
+	defer conn.Close()
+
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		log.Printf("[WebSocket Read Error] %v", err)
+		return
+	}
+
+	var incoming IncomingWSMessage
+	if err := json.Unmarshal(message, &incoming); err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"Invalid JSON format"}`))
+	}
+	log.Printf("Received message for ChatID [%s]: %s\n", incoming.ChatID, incoming.Query)
+
+	req := &Request{
+		query:      incoming.Query,
+		responseCh: make(chan string, 10),
+		createdAt:  time.Now(),
+		isActive:   false,
+		isComplete: false,
+		ChatID:     incoming.ChatID,
+	}
+
+	rqManager.AddRequest(req)
+
+	for {
+		select {
+		case token, ok := <-req.responseCh:
+			if !ok {
+				log.Printf("[WebSocket] Response channel closed for query: %s", incoming.Query)
+				return
+			}
+
+			if err := conn.WriteMessage(websocket.TextMessage, []byte(token)); err != nil {
+				log.Printf("[WebSocket Write Error] %v for query: %s", err, incoming.Query)
+				return
+			}
+
+			if token == "[END]" {
+				log.Printf("[WebSocket] Completed sending tokens for query: %s", incoming.Query)
+				return
+			}
+		case <-time.After(websocketTimeout):
+			log.Printf("[Timeout: WebSocket Response] No response received in %v for query: %s", websocketTimeout, incoming.Query)
 			conn.WriteMessage(websocket.TextMessage, []byte("Timeout: no response received."))
 			return
 		}
