@@ -24,3 +24,13 @@
 
 - Fix timeouts to something normal
   - In model_service.go and do this last.
+
+- Introduce DDoS safety in server.
+
+- Deploy on Azure
+  - Create a single test account and temporarily disable register page.
+  - Get Kubernetes configs working. Want to scale vLLM containers mostly.
+
+- Cool features to add eventually
+  - Use small LLM to add titles to chats based on queries.
+  - Change frontend to actual framework.S
