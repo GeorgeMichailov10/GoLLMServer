@@ -1,26 +1,35 @@
 import streamlit as st
+import requests
+from streamlit_extras.switch_page_button import switch_page
 
-st.set_page_config(page_title="Login Page", page_icon="🔐", layout="centered")
+st.set_page_config(page_title="Login", layout="centered")
 
-st.title("🔒 Login/Register")
+st.title("Login Page")
 
-# Initialize authentication state
-if "authenticated" not in st.session_state:
-    st.session_state.authenticated = False
+username = st.text_input("Username")
+password = st.text_input("Password", type="password")
 
-# Login form
-with st.form("login_form"):
-    st.subheader("Please enter your credentials")
-    username = st.text_input("Username", placeholder="Enter your username")
-    password = st.text_input("Password", type="password", placeholder="Enter your password")
-    submit_button = st.form_submit_button("Login")
-
-if submit_button:
-    # Simple authentication placeholder (replace with real logic)
-    if username == "admin" and password == "password":
-        st.session_state.authenticated = True
-        st.success("✅ Login successful! Redirecting to Home...")
-        st.query_params(page="Chat")  # Redirect
-        st.experimental_rerun()
+if st.button("Login"):
+    if username and password:
+        payload = {"username": username, "password": password}
+        try:
+            response = requests.post("http://localhost:8080/login", json=payload)
+            if response.status_code == 200:
+                data = response.json()
+                token = data.get("token")
+                if token:
+                    st.session_state["jwt_token"] = token
+                    st.session_state["username"] = username
+                    st.success("Login successful!")
+                    switch_page("chat interface")
+                else:
+                    st.error("Login failed: Token not found in response.")
+            else:
+                error_message = response.json().get("error", "Login failed.")
+                st.error(f"Login failed: {error_message}")
+        except Exception as e:
+            st.error(f"An error occurred: {str(e)}")
     else:
-        st.error("❌ Invalid credentials. Please try again.")
+        st.error("Please enter both username and password.")
+
+st.markdown("Don't have an account? [Register here](http://localhost:8501/register_page)")
