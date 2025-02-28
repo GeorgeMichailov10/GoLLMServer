@@ -27,7 +27,6 @@ except Exception as e:
     st.error(f"An error occurred while retrieving chats: {str(e)}")
     chats_data = {}
 
-# Display chat IDs (and titles) in the sidebar.
 st.sidebar.title("Your Chats")
 if chats_data:
     for chat_id, title in chats_data.items():
