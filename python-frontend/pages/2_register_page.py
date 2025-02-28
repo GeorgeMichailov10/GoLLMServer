@@ -28,4 +28,4 @@ if st.button("Register"):
         except Exception as e:
             st.error(f"An error occurred: {str(e)}")
 
-st.markdown("Already have an account? [Login here](http://localhost:8501/login)")
+st.markdown("Already have an account? [Login here](http://localhost:8501/login_page)")

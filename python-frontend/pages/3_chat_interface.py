@@ -14,22 +14,36 @@ if "jwt_token" not in st.session_state or "username" not in st.session_state:
 jwt_token = st.session_state["jwt_token"]
 username = st.session_state["username"]
 
-# Retrieve the user's chats from the backend.
-try:
-    headers = {"Authorization": f"Bearer {jwt_token}"}
-    response = requests.get("http://localhost:8080/user/chats", headers=headers)
-    if response.status_code == 200:
-        chats_data = response.json().get("chats", {})
-    else:
-        st.error("Failed to retrieve chats.")
-        chats_data = {}
-except Exception as e:
-    st.error(f"An error occurred while retrieving chats: {str(e)}")
-    chats_data = {}
+headers = {"Authorization": f"Bearer {jwt_token}"}
 
+def load_chats():
+    try:
+        response = requests.get("http://localhost:8080/user/chats", headers=headers)
+        if response.status_code == 200:
+            return response.json().get("chats", {})
+        else:
+            st.error("Failed to retrieve chats.")
+            return {}
+    except Exception as e:
+        st.error(f"An error occurred while retrieving chats: {str(e)}")
+        return {}
+
+# Initially load chats into session_state if not already loaded.
+if "chats_data" not in st.session_state:
+    st.session_state.chats_data = load_chats()
+
+# Sidebar: add the "Reload Chats" button above the chat list.
 st.sidebar.title("Your Chats")
-if chats_data:
-    for chat_id, title in chats_data.items():
+if st.sidebar.button("Reload Chats"):
+    post_response = requests.post("http://localhost:8080/user/chats", headers=headers)
+    if post_response.status_code in [200, 201]:
+        st.session_state.chats_data = load_chats()
+    else:
+        st.error("Failed to update chats from POST request.")
+
+# Display the user's chats from session_state.
+if st.session_state.chats_data:
+    for chat_id, title in st.session_state.chats_data.items():
         st.sidebar.write(f"Chat ID: {chat_id} - {title}")
 else:
     st.sidebar.write("No chats available.")
