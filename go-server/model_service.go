@@ -219,7 +219,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// TODO: Validate Claims
 func newWSHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -250,6 +249,7 @@ func newWSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	rqManager.AddRequest(req)
+	var modelResponse string
 
 	for {
 		select {
@@ -264,8 +264,18 @@ func newWSHandler(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 
-			if token == "[END]" {
+			if token != "[END]" {
+				modelResponse += token
+				return
+			} else {
 				log.Printf("[WebSocket] Completed sending tokens for query: %s", incoming.Query)
+				interaction := ChatInteraction{
+					ChatID:    req.ChatID,
+					UserChat:  incoming.Query,
+					ModelChat: modelResponse,
+				}
+
+				go AddInteraction(interaction)
 				return
 			}
 		case <-time.After(websocketTimeout):

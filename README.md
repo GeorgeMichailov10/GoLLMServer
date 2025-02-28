@@ -1,13 +1,11 @@
 # TODO:
 
-
-
 - Update front end to have login page first to receive JWT token and hit register + login: DONE
   - Create Login page to hit login route, store jwt token, and move to chat interface page: DONE
   - Create Register page where it hits register and sends them back to login: DONE
 
 - Update front end to hit get chats for a user using JWT token and display the json as button choices in the left sidebar.
-  - Hit route and store in frontend: Dpme
+  - Hit route and store in frontend: DONE
   - Display lazily in sidebar with current chat highlighted
   - For simplicity display on the last chat
 
@@ -15,8 +13,9 @@
   - Remove route for add interaction. : DONE
   - Add chatid to Request struct. : DONE
   - Call through chat.go after a request has been completed by passing chatid. query, model response. : DONE
-  - In vLlmInteractor, stuff model response and then call addInteraction function once done.
-  - Verify that everything is correct.
+  - In vLlmInteractor, stuff model response and then call addInteraction function once done: DONE
+  - Verify that everything is correct: DONE
+  - Change newWSHandler to be default handler once frontend is compatible.
 
 - Write new Web Socket Handler that will be unused for now and needs a JWT token to operate.: DONE
 

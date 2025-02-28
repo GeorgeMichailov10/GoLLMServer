@@ -15,10 +15,10 @@ import (
 // Chat Model(s)
 
 type Chat struct {
-	ID      primitive.ObjectID  `json:"id,omitempty" bson:"_id,omitempty"`
-	OwnerID primitive.ObjectID  `json:"ownerid,omitempty" bson:"ownerid,omitempty"`
-	Title   string              `json:"title,omitempty" bson:"title,omitempty"`
-	Content []map[string]string `json:"content,omitempty" bson:"content,omitempty"` // list of {user:"", model:""} interactions
+	ID            primitive.ObjectID  `json:"id,omitempty" bson:"_id,omitempty"`
+	OwnerUsername string              `json:"ownerid,omitempty" bson:"ownerid,omitempty"`
+	Title         string              `json:"title,omitempty" bson:"title,omitempty"`
+	Content       []map[string]string `json:"content,omitempty" bson:"content,omitempty"` // list of {user:"", model:""} interactions
 }
 
 type ChatInteraction struct {
@@ -29,32 +29,16 @@ type ChatInteraction struct {
 
 // CRUD functions
 
-func CreateChat(c echo.Context) error {
-	username, ok := c.Get("username").(string)
-	if !ok {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized"})
-	}
-
-	owningUser, err := GetUser(username)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create chat"})
-	}
-
-	chat := Chat{
-		ID:      primitive.NewObjectID(),
-		OwnerID: owningUser.ID,
-		Content: make([]map[string]string, 3),
-	}
-	chat.Title = chat.ID.String()
-
+func CreateChat(chat Chat) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	_, insert_err := ChatCollection.InsertOne(ctx, chat)
 	if insert_err != nil {
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create chat"})
+		log.Print("Failed to create chat")
+		return false
 	}
-	return c.JSON(http.StatusCreated, chat)
+	return true
 }
 
 func GetChat(c echo.Context) (*Chat, error) {
@@ -120,10 +104,9 @@ func GetChatHandler(c echo.Context) error {
 // Route Controller
 
 func ChatRouteController(e *echo.Echo) {
-	chatGroup := e.Group("/c")
+	chatGroup := e.Group("/chat")
 
 	chatGroup.Use(JWTMiddleware)
-	chatGroup.POST("", CreateChat)
 	chatGroup.GET("/:chatid", GetChatHandler)
 	chatGroup.DELETE("/:chatid", DeleteChat)
 }
@@ -131,7 +114,7 @@ func ChatRouteController(e *echo.Echo) {
 // Utility Functions
 
 // Verify if this is correct
-func AddInteraction(interaction ChatInteraction) bool {
+func AddInteraction(interaction ChatInteraction) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -146,12 +129,14 @@ func AddInteraction(interaction ChatInteraction) bool {
 
 	res, err := ChatCollection.UpdateOne(ctx, bson.M{"_id": interaction.ChatID}, update)
 	if err != nil {
-		return false
+		log.Printf("[Error] Failed to update chat with id %v: %v", interaction.ChatID, err)
+		return
 	}
 
 	if res.ModifiedCount == 0 {
-		return false
+		log.Printf("[Warning] No document was updated for chat with id %v", interaction.ChatID)
+		return
 	}
 
-	return true
+	log.Printf("Successfully added latest interaction to chat: %v", interaction.ChatID)
 }
