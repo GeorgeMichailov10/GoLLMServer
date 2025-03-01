@@ -183,47 +183,6 @@ func GetUserChats(c echo.Context) error {
 	return c.JSON(http.StatusOK, echo.Map{"chats": user.Chats})
 }
 
-func CreateNewChat(c echo.Context) error {
-	username, ok := c.Get("username").(string)
-	if !ok {
-		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized"})
-	}
-
-	newChat := Chat{
-		ID:            primitive.NewObjectID(),
-		OwnerUsername: username,
-		Content:       make([]map[string]string, 0),
-	}
-	newChat.Title = newChat.ID.Hex()
-
-	inserted := CreateChat(newChat)
-	if !inserted {
-		log.Printf("Failed to create new chat for %s", username)
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to create chat"})
-	}
-
-	log.Printf("Successfully created new chat for %s", username)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	update := bson.M{
-		"$set": bson.M{
-			newChat.ID.Hex(): newChat.Title,
-		},
-	}
-	res, err := UserCollection.UpdateOne(ctx, bson.M{"username": username}, update)
-	if err != nil {
-		log.Printf("Failed to update user's chats for %s: %v", username, err)
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update user chats"})
-	}
-	if res.ModifiedCount == 0 {
-		log.Printf("No document was updated when updating chats for user %s", username)
-		return c.JSON(http.StatusInternalServerError, echo.Map{"error": "Failed to update user chats"})
-	}
-
-	return c.NoContent(http.StatusOK)
-}
-
 // Route Controller
 
 func UserRouteController(e *echo.Echo) {
@@ -234,7 +193,6 @@ func UserRouteController(e *echo.Echo) {
 	protected.Use(JWTMiddleware)
 	protected.GET("", GetUserHandler)
 	protected.GET("/chats", GetUserChats)
-	protected.POST("/chats", CreateNewChat)
 	protected.DELETE("", DeleteUser)
 }
 
@@ -250,4 +208,40 @@ func HashPassword(password string) (string, error) {
 func CheckPassword(password string, hash string) bool {
 	err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
 	return err == nil
+}
+
+func CreateNewUserChat(username string) (bool, primitive.ObjectID) {
+	newChat := Chat{
+		ID:            primitive.NewObjectID(),
+		OwnerUsername: username,
+		Content:       make([]map[string]string, 0),
+	}
+	newChat.Title = newChat.ID.Hex()
+
+	inserted := CreateChat(newChat)
+	if !inserted {
+		log.Printf("Failed to create new chat for %s", username)
+		return false, primitive.NilObjectID
+	}
+
+	log.Printf("Successfully created new chat for %s", username)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	update := bson.M{
+		"$set": bson.M{
+			"chats." + newChat.ID.Hex(): newChat.Title,
+		},
+	}
+	res, err := UserCollection.UpdateOne(ctx, bson.M{"username": username}, update)
+	if err != nil {
+		log.Printf("Failed to update user's chats for %s: %v", username, err)
+		return false, primitive.NilObjectID
+	}
+	if res.ModifiedCount == 0 {
+		log.Printf("No document was updated when updating chats for user %s", username)
+		return false, primitive.NilObjectID
+	}
+
+	return true, newChat.ID
 }

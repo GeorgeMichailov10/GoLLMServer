@@ -31,6 +31,12 @@ func main() {
 		}, JWTMiddleware)
 	*/
 
+	// Socket + Simulated Model Service
+	e.GET("/ws", func(c echo.Context) error {
+		SimulationWsHandler(c.Response(), c.Request())
+		return nil
+	}, JWTMiddleware)
+
 	// Controllers
 	UserRouteController(e)
 	ChatRouteController(e)

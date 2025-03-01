@@ -181,63 +181,24 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("[WebSocket Read Error] %v", err)
 		return
 	}
-	query := string(message)
-	log.Printf("[WebSocket Received] Query: %s", query)
-
-	req := &Request{
-		query:      query,
-		responseCh: make(chan string, 10),
-		createdAt:  time.Now(),
-		isActive:   false,
-		isComplete: false,
-	}
-
-	rqManager.AddRequest(req)
-
-	for {
-		select {
-		case token, ok := <-req.responseCh:
-			if !ok {
-				log.Printf("[WebSocket] Response channel closed for query: %s", query)
-				return
-			}
-
-			if err := conn.WriteMessage(websocket.TextMessage, []byte(token)); err != nil {
-				log.Printf("[WebSocket Write Error] %v for query: %s", err, query)
-				return
-			}
-
-			if token == "[END]" {
-				log.Printf("[WebSocket] Completed sending tokens for query: %s", query)
-				return
-			}
-		case <-time.After(websocketTimeout):
-			log.Printf("[Timeout: WebSocket Response] No response received in %v for query: %s", websocketTimeout, query)
-			conn.WriteMessage(websocket.TextMessage, []byte("Timeout: no response received."))
-			return
-		}
-	}
-}
-
-func newWSHandler(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("[WebSocket Upgrade Error] %v", err)
-		return
-	}
-	defer conn.Close()
-
-	_, message, err := conn.ReadMessage()
-	if err != nil {
-		log.Printf("[WebSocket Read Error] %v", err)
-		return
-	}
 
 	var incoming IncomingWSMessage
 	if err := json.Unmarshal(message, &incoming); err != nil {
 		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"Invalid JSON format"}`))
+		return
 	}
 	log.Printf("Received message for ChatID [%s]: %s\n", incoming.ChatID, incoming.Query)
+
+	if len(incoming.ChatID) == 0 {
+		success, newchatid := CreateNewUserChat(incoming.Claims.Username)
+
+		if !success {
+			conn.WriteMessage(websocket.TextMessage, []byte(`{"error" : "Failed to add chat to user."}`))
+			return
+		}
+
+		incoming.ChatID = newchatid.Hex()
+	}
 
 	req := &Request{
 		query:      incoming.Query,
@@ -284,4 +245,53 @@ func newWSHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+}
+
+func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("[WebSocket Upgrade Error] %v", err)
+		return
+	}
+	defer conn.Close()
+
+	_, message, err := conn.ReadMessage()
+	if err != nil {
+		log.Printf("[WebSocket Read Error] %v", err)
+		return
+	}
+
+	var incoming IncomingWSMessage
+	if err := json.Unmarshal(message, &incoming); err != nil {
+		conn.WriteMessage(websocket.TextMessage, []byte(`{"error":"Invalid JSON format"}`))
+		return
+	}
+	log.Printf("Received message for ChatID [%s]: %s\n", incoming.ChatID, incoming.Query)
+
+	success, newchatid := CreateNewUserChat(incoming.Claims.Username)
+	if !success {
+		conn.WriteMessage(websocket.TextMessage, []byte(`{"error" : "Failed to add chat to user."}`))
+		return
+	}
+
+	modelResponse := "Simulated response"
+
+	if err := conn.WriteMessage(websocket.TextMessage, []byte(modelResponse)); err != nil {
+		log.Printf("[WebSocket Write Error] %v for query: %s", err, incoming.Query)
+		return
+	}
+
+	if err := conn.WriteMessage(websocket.TextMessage, []byte("[END]")); err != nil {
+		log.Printf("[WebSocket Write Error] %v for query: %s", err, incoming.Query)
+		return
+	}
+
+	log.Printf("[WebSocket] Completed sending simulated tokens for query: %s", incoming.Query)
+
+	interaction := ChatInteraction{
+		ChatID:    newchatid.Hex(),
+		UserChat:  incoming.Query,
+		ModelChat: modelResponse,
+	}
+	go AddInteraction(interaction)
 }
