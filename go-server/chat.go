@@ -113,7 +113,6 @@ func ChatRouteController(e *echo.Echo) {
 
 // Utility Functions
 
-// Verify if this is correct
 func AddInteraction(interaction ChatInteraction) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

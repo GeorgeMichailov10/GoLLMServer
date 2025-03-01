@@ -274,6 +274,8 @@ func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Printf("Successfully created new chat.")
+
 	modelResponse := "Simulated response"
 
 	if err := conn.WriteMessage(websocket.TextMessage, []byte(modelResponse)); err != nil {
