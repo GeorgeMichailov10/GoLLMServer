@@ -118,6 +118,12 @@ func AddInteraction(interaction ChatInteraction) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	chatID, err := primitive.ObjectIDFromHex(interaction.ChatID)
+	if err != nil {
+		log.Printf("[Error] Invalid chat ID %v: %v", interaction.ChatID, err)
+		return
+	}
+
 	update := bson.M{
 		"$push": bson.M{
 			"content": bson.M{
@@ -127,16 +133,16 @@ func AddInteraction(interaction ChatInteraction) {
 		},
 	}
 
-	res, err := ChatCollection.UpdateOne(ctx, bson.M{"_id": interaction.ChatID}, update)
+	res, err := ChatCollection.UpdateOne(ctx, bson.M{"_id": chatID}, update)
 	if err != nil {
-		log.Printf("[Error] Failed to update chat with id %v: %v", interaction.ChatID, err)
+		log.Printf("[Error] Failed to update chat with id %v: %v", chatID, err)
 		return
 	}
 
 	if res.ModifiedCount == 0 {
-		log.Printf("[Warning] No document was updated for chat with id %v", interaction.ChatID)
+		log.Printf("[Warning] No document was updated for chat with id %v", chatID)
 		return
 	}
 
-	log.Printf("Successfully added latest interaction to chat: %v", interaction.ChatID)
+	log.Printf("Successfully added latest interaction to chat: %v", chatID)
 }

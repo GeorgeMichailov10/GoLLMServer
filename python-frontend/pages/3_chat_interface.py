@@ -1,4 +1,5 @@
 import streamlit as st
+import json
 import requests
 import websocket
 from streamlit_extras.switch_page_button import switch_page
@@ -20,9 +21,10 @@ def load_chats():
     try:
         response = requests.get("http://localhost:8080/user/chats", headers=headers)
         if response.status_code == 200:
+            print(response.json().get("chats", {}))
             return response.json().get("chats", {})
         else:
-            st.error("Failed to retrieve chats.")
+            st.error(f"Failed to retrieve chats. {response}")
             return {}
     except Exception as e:
         st.error(f"An error occurred while retrieving chats: {str(e)}")
@@ -35,11 +37,11 @@ if "chats_data" not in st.session_state:
 # Sidebar: add the "Reload Chats" button above the chat list.
 st.sidebar.title("Your Chats")
 if st.sidebar.button("Reload Chats"):
-    post_response = requests.post("http://localhost:8080/user/chats", headers=headers)
-    if post_response.status_code in [200, 201]:
+    get_response = requests.get("http://localhost:8080/user/chats", headers=headers)
+    if get_response.status_code in [200, 201]:
         st.session_state.chats_data = load_chats()
     else:
-        st.error("Failed to update chats from POST request.")
+        st.error("Failed to update chats from GET request.")
 
 # Display the user's chats from session_state.
 if st.session_state.chats_data:
@@ -66,9 +68,16 @@ def generate_response(prompt_input):
     Sends the user's prompt to the websocket server and collects tokens
     until the '[END]' marker is received. Returns the full response.
     """
-    full_prompt = f"user: {prompt_input}\nassistant:"
-    ws = websocket.create_connection("ws://localhost:8080/ws")
-    ws.send(full_prompt)
+    payload = json.dumps({
+        "claims": {"username": st.session_state.username},
+        "query": prompt_input,
+        "chatid": ""
+    })
+    ws = websocket.create_connection(
+        "ws://localhost:8080/ws",
+        header=["Authorization: Bearer " + st.session_state["jwt_token"]]
+    )
+    ws.send(payload)
 
     full_response = ""
     while True:
