@@ -70,7 +70,10 @@ func GetUser(username string) (*User, error) {
 }
 
 func DeleteUser(c echo.Context) error {
-	username := c.Param("username")
+	username, ok := c.Get("username").(string)
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, echo.Map{"error": "Unauthorized"})
+	}
 
 	user, err := GetUser(username)
 	if err != nil {

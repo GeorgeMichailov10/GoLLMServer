@@ -268,13 +268,16 @@ func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Printf("Received message for ChatID [%s]: %s\n", incoming.ChatID, incoming.Query)
 
-	success, newchatid := CreateNewUserChat(incoming.Claims.Username)
-	if !success {
-		conn.WriteMessage(websocket.TextMessage, []byte(`{"error" : "Failed to add chat to user."}`))
-		return
-	}
+	if len(incoming.ChatID) == 0 {
+		success, newchatid := CreateNewUserChat(incoming.Claims.Username)
 
-	log.Printf("Successfully created new chat.")
+		if !success {
+			conn.WriteMessage(websocket.TextMessage, []byte(`{"error" : "Failed to add chat to user."}`))
+			return
+		}
+
+		incoming.ChatID = newchatid.Hex()
+	}
 
 	modelResponse := "Simulated response"
 
@@ -291,7 +294,7 @@ func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[WebSocket] Completed sending simulated tokens for query: %s", incoming.Query)
 
 	interaction := ChatInteraction{
-		ChatID:    newchatid.Hex(),
+		ChatID:    incoming.ChatID,
 		UserChat:  incoming.Query,
 		ModelChat: modelResponse,
 	}

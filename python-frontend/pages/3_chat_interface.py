@@ -14,9 +14,28 @@ if "jwt_token" not in st.session_state or "username" not in st.session_state:
 
 jwt_token = st.session_state["jwt_token"]
 username = st.session_state["username"]
-
 headers = {"Authorization": f"Bearer {jwt_token}"}
 
+# ------------------ Delete Account Button (Top Right) ------------------
+# Create two columns; left for title, right for the delete button.
+col1, col2 = st.columns([8, 2])
+with col1:
+    st.title("George LLM Chat (Non-Streaming)")
+with col2:
+    if st.button("Delete Account"):
+        try:
+            del_response = requests.delete("http://localhost:8080/user", headers=headers)
+            if del_response.status_code in [200, 204]:
+                st.success("Account deleted successfully.")
+                st.session_state.clear()
+                switch_page("login page")
+            else:
+                st.error("Failed to delete account.")
+        except Exception as e:
+            st.error(f"An error occurred: {e}")
+# ------------------ End Delete Account Button ------------------
+
+# Function to load all chats.
 def load_chats():
     try:
         response = requests.get("http://localhost:8080/user/chats", headers=headers)
@@ -34,29 +53,39 @@ def load_chats():
 if "chats_data" not in st.session_state:
     st.session_state.chats_data = load_chats()
 
-# Sidebar: add the "Reload Chats" button above the chat list.
+# Sidebar: add the "New Chat" button above the chat list.
 st.sidebar.title("Your Chats")
-if st.sidebar.button("Reload Chats"):
-    get_response = requests.get("http://localhost:8080/user/chats", headers=headers)
-    if get_response.status_code in [200, 201]:
-        st.session_state.chats_data = load_chats()
-    else:
-        st.error("Failed to update chats from GET request.")
+if st.sidebar.button("New Chat"):
+    st.session_state.selected_chat = None
+    st.session_state.messages = []
 
-# Display the user's chats from session_state.
+# Display the user's chats as buttons in the sidebar.
 if st.session_state.chats_data:
-    for chat_id, title in st.session_state.chats_data.items():
-        st.sidebar.write(f"Chat ID: {chat_id} - {title}")
+    for chat_id, title in reversed(list(st.session_state.chats_data.items())):
+        if st.sidebar.button(f"Chat ID: {chat_id} - {title}", key=f"chat_{chat_id}"):
+            st.session_state.selected_chat = chat_id
+            # Build the URL for the selected chat.
+            chat_url = f"http://localhost:8080/chat/{chat_id}"
+            chat_response = requests.get(chat_url, headers=headers)
+            if chat_response.status_code == 200:
+                chat_data = chat_response.json()
+                messages = []
+                if "content" in chat_data and chat_data["content"]:
+                    for interaction in chat_data["content"]:
+                        if "user" in interaction and interaction["user"]:
+                            messages.append({"role": "user", "content": interaction["user"]})
+                        if "model" in interaction and interaction["model"]:
+                            messages.append({"role": "assistant", "content": interaction["model"]})
+                st.session_state.messages = messages
+                st.sidebar.write(f"Selected chat {chat_id}")
+            else:
+                st.sidebar.error("Failed to retrieve chat content.")
 else:
     st.sidebar.write("No chats available.")
 
-st.title("George LLM Chat (Non-Streaming)")
-
-# Set up an initial message if none exist.
+# Set up an initial messages list if none exist.
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "assistant", "content": "How may I help you?"}
-    ]
+    st.session_state.messages = []
 
 # Render the conversation.
 for message in st.session_state.messages:
@@ -68,10 +97,12 @@ def generate_response(prompt_input):
     Sends the user's prompt to the websocket server and collects tokens
     until the '[END]' marker is received. Returns the full response.
     """
+    # Directly get the selected chat from session state.
+    selected_chat = st.session_state.get("selected_chat", "")
     payload = json.dumps({
         "claims": {"username": st.session_state.username},
         "query": prompt_input,
-        "chatid": ""
+        "chatid": selected_chat
     })
     ws = websocket.create_connection(
         "ws://localhost:8080/ws",
@@ -90,6 +121,8 @@ def generate_response(prompt_input):
 
 # Chat input and response generation.
 if prompt := st.chat_input("Enter your message:"):
+    # Directly retrieve the selected chat from session state.
+    selected_chat = st.session_state.get("selected_chat", "")
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
@@ -99,3 +132,31 @@ if prompt := st.chat_input("Enter your message:"):
     st.session_state.messages.append({"role": "assistant", "content": response})
     with st.chat_message("assistant"):
         st.write(response)
+
+    # Sneaky reload: if no selected chat was set (first interaction),
+    # reload chats, assume the newest chat is the one just created,
+    # and update the selected chat accordingly.
+    print("Selected Chat id:", st.session_state.get("selected_chat", ""))
+    if not st.session_state.get("selected_chat", ""):
+        st.session_state.chats_data = load_chats()
+        print(st.session_state.chats_data)
+        if st.session_state.chats_data:
+            newest_chat_id = list(st.session_state.chats_data.keys())[-1]
+            chat_url = f"http://localhost:8080/chat/{newest_chat_id}"
+            chat_response = requests.get(chat_url, headers=headers)
+            print(chat_response)
+            if chat_response.status_code == 200:
+                chat_data = chat_response.json()
+                messages = []
+                if "content" in chat_data and chat_data["content"]:
+                    for interaction in chat_data["content"]:
+                        if "user" in interaction and interaction["user"]:
+                            messages.append({"role": "user", "content": interaction["user"]})
+                        if "model" in interaction and interaction["model"]:
+                            messages.append({"role": "assistant", "content": interaction["model"]})
+                st.session_state.messages = messages
+                st.session_state.selected_chat = newest_chat_id
+            else:
+                st.error("Failed to retrieve the newest chat content.")
+        else:
+            st.error("No chats found after reloading.")
