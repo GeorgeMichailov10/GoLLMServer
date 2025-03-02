@@ -1,3 +1,5 @@
 /config/*
 /mobile-app
 /kubernetes
+/go-server/model-service/custom-model
+go-server/model-service/merged_model

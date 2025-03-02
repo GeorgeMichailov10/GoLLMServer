@@ -9,7 +9,7 @@ from vllm.sampling_params import SamplingParams
 
 # Define parameters and initialize engine.
 SAMPLING_PARAMS = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=15)
-MODEL_NAME = "facebook/opt-125m"
+MODEL_NAME = "merged_model"
 engine_args = AsyncEngineArgs(
     model=MODEL_NAME,
     tensor_parallel_size=1,

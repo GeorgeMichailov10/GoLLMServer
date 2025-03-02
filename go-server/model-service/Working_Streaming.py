@@ -5,7 +5,7 @@ import asyncio
 
 async def main():
     engine_args = AsyncEngineArgs(
-        model="facebook/opt-125m",
+        model="merged_model",
         tensor_parallel_size=1,
     )
     engine = AsyncLLMEngine.from_engine_args(engine_args)
