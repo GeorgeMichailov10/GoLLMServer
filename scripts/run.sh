@@ -31,7 +31,7 @@ echo "Go server started with PID: $GO_SERVER_PID"
 echo "Starting Streamlit front end..."
 cd ../python-frontend
 
-streamlit run app.py --server.port=8501 &
+streamlit run login_page.py --server.port=8501 &
 FRONTEND_PID=$!
 echo "Streamlit front end started with PID: $FRONTEND_PID"
 
