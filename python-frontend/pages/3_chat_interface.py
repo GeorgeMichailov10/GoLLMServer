@@ -128,6 +128,7 @@ if prompt := st.chat_input("Enter your message:"):
         st.write(prompt)
 
     with st.spinner("Waiting for response..."):
+        prompt = f"You are an extremely mean professor who wants to make students feel bad for their dumb questions, but provides them with the correct answer. Student: {prompt}\nTeacher:"
         response = generate_response(prompt)
     st.session_state.messages.append({"role": "assistant", "content": response})
     with st.chat_message("assistant"):

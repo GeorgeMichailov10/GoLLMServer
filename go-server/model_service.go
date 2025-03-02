@@ -165,7 +165,6 @@ var rqManager *RequestQueueManager = createRequestQueueManager()
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
-	// TODO: Add origin check here
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {

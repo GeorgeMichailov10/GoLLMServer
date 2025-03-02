@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 
@@ -21,21 +22,21 @@ func main() {
 	})
 
 	// Socket + Model Service related
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	rqManager.Start(ctx)
+	e.GET("/ws", func(c echo.Context) error {
+		wsHandler(c.Response(), c.Request())
+		return nil
+	}, JWTMiddleware)
+
 	/*
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-		rqManager.Start(ctx)
+		// Socket + Simulated Model Service
 		e.GET("/ws", func(c echo.Context) error {
-			wsHandler(c.Response(), c.Request())
+			SimulationWsHandler(c.Response(), c.Request())
 			return nil
 		}, JWTMiddleware)
 	*/
-
-	// Socket + Simulated Model Service
-	e.GET("/ws", func(c echo.Context) error {
-		SimulationWsHandler(c.Response(), c.Request())
-		return nil
-	}, JWTMiddleware)
 
 	// Controllers
 	UserRouteController(e)
