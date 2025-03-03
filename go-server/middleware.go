@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -55,4 +56,27 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		c.Set("username", claims.Username)
 		return next(c)
 	}
+}
+
+func wsJWTCheck(r *http.Request) (*Claims, error) {
+	tokenString := r.Header.Get("Authorization")
+	if tokenString == "" {
+		return nil, errors.New("missing token")
+	}
+
+	parts := strings.Split(tokenString, " ")
+	if len(parts) != 2 || parts[0] != "Bearer" {
+		return nil, errors.New("invalid token format")
+	}
+	authToken := parts[1]
+
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(authToken, claims, func(token *jwt.Token) (interface{}, error) {
+		return jwtSecret, nil
+	})
+	if err != nil || !token.Valid {
+		return nil, errors.New("invalid token")
+	}
+
+	return claims, nil
 }

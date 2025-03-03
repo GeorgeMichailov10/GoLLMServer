@@ -21,6 +21,7 @@ const (
 	grpcQueryTimeout = 120 * time.Second // Increased timeout for gRPC query
 	grpcDialTimeout  = 60 * time.Second  // Increased dial timeout
 	websocketTimeout = grpcDialTimeout   // gracePeriod + 2*time.Second // Increased WS timeout and added margin
+	maxMessageSize   = 512
 )
 
 type Request struct {
@@ -168,12 +169,24 @@ var upgrader = websocket.Upgrader{
 }
 
 func wsHandler(w http.ResponseWriter, r *http.Request) {
+	_, err := wsJWTCheck(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusUnauthorized)
+		return
+	}
+
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("[WebSocket Upgrade Error] %v", err)
 		return
 	}
 	defer conn.Close()
+
+	conn.SetCloseHandler(func(code int, text string) error {
+		log.Printf("WebSocket closed: %d - %s\n", code, text)
+		return nil
+	})
+	conn.SetReadLimit(512)
 
 	_, message, err := conn.ReadMessage()
 	if err != nil {
@@ -245,6 +258,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+/*
 func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -297,4 +311,4 @@ func SimulationWsHandler(w http.ResponseWriter, r *http.Request) {
 		ModelChat: modelResponse,
 	}
 	go AddInteraction(interaction)
-}
+}*/
