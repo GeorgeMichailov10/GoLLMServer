@@ -99,14 +99,24 @@ def generate_response(prompt_input):
     """
     # Directly get the selected chat from session state.
     selected_chat = st.session_state.get("selected_chat", "")
+    
+    # Check that we have a valid JWT token before proceeding.
+    jwt_token = st.session_state.get("jwt_token")
+    if not jwt_token:
+        st.error("JWT token not found. Please log in again.")
+        switch_page("login page")
+        st.stop()
+    
     payload = json.dumps({
         "claims": {"username": st.session_state.username},
         "query": prompt_input,
         "chatid": selected_chat
     })
+    
+    # Create the websocket connection, passing the JWT in the header.
     ws = websocket.create_connection(
         "ws://localhost:8080/ws",
-        header=["Authorization: Bearer " + st.session_state["jwt_token"]]
+        header=["Authorization: Bearer " + jwt_token]
     )
     ws.send(payload)
 
@@ -118,6 +128,7 @@ def generate_response(prompt_input):
         full_response += token
     ws.close()
     return full_response
+
 
 # Chat input and response generation.
 if prompt := st.chat_input("Enter your message:"):
