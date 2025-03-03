@@ -226,7 +226,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 			if token != "[END]" {
 				modelResponse += token
-				return
 			} else {
 				log.Printf("[WebSocket] Completed sending tokens for query: %s", incoming.Query)
 				interaction := ChatInteraction{
