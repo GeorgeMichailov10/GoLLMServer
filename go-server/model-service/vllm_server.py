@@ -7,7 +7,7 @@ from vllm.engine.async_llm_engine import AsyncLLMEngine
 from vllm.engine.arg_utils import AsyncEngineArgs
 from vllm.sampling_params import SamplingParams
 
-SAMPLING_PARAMS = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=30)
+SAMPLING_PARAMS = SamplingParams(temperature=0.7, top_p=0.95, max_tokens=150)
 MODEL_NAME = "merged_model"
 engine_args = AsyncEngineArgs(
     model=MODEL_NAME,
