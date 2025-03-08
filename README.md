@@ -19,6 +19,10 @@ The frontend page does not allow access to any page other than login and registr
 
 I really wanted to add Kubernetes around the vLLM server, but I don't have the hardware to try this on. If I have time in the future, I will come back and rebuild the model service to have Kubernetes to scale under demand, change the implementation logic in the model_service.go file to accomodate this, and use Kubernetes on the go server itself.
 
+### Bug Fixes
+
+1. Hide system prompt in conversation history (backend and frontend changes necessary).
+
 ### Future Additions
 
 TODO: Create Docker image
